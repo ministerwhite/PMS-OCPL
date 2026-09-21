@@ -2415,6 +2415,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
   const [loading, setLoading] = useState(true);
   const [selPos, setSelPos] = useState(null);
   const [stageTab, setStageTab] = useState("all");
+  const [candSearch, setCandSearch] = useState("");
   const [posSearch, setPosSearch] = useState("");
   const [posStatusF, setPosStatusF] = useState("Open");
   const [showAddPos, setShowAddPos] = useState(false);
@@ -2465,7 +2466,10 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     });
 
   const posCands = selPos ? candidates.filter(c => c.positionId === selPos.id) : [];
-  const visibleCands = stageTab === "all" ? posCands : posCands.filter(c => c.stage === stageTab);
+  const candQ = candSearch.trim().toLowerCase();
+  const visibleCands = posCands
+    .filter(c => stageTab === "all" || c.stage === stageTab)
+    .filter(c => !candQ || c.name?.toLowerCase().includes(candQ) || c.email?.toLowerCase().includes(candQ) || c.currentCompany?.toLowerCase().includes(candQ) || c.phone?.includes(candQ));
   const stageCounts = REC_STAGES.reduce((a, s) => { a[s.id] = posCands.filter(c => c.stage === s.id).length; return a; }, {});
   const filled = selPos ? posCands.filter(c => c.stage === "joined").length : 0;
 
@@ -2747,7 +2751,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
               const pf = pc.filter(c => c.stage === "joined").length;
               const sc = p.status === "Open" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : p.status === "On Hold" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-100 text-slate-600 border-slate-300";
               return (
-                <button key={p.id} onClick={() => { setSelPos(p); setStageTab("all"); }} className={`w-full text-left bg-white rounded-xl border p-4 transition hover:shadow-sm ${selPos?.id === p.id ? "border-indigo-400 ring-1 ring-indigo-300" : "border-slate-200 hover:border-indigo-200"}`}>
+                <button key={p.id} onClick={() => { setSelPos(p); setStageTab("all"); setCandSearch(""); }} className={`w-full text-left bg-white rounded-xl border p-4 transition hover:shadow-sm ${selPos?.id === p.id ? "border-indigo-400 ring-1 ring-indigo-300" : "border-slate-200 hover:border-indigo-200"}`}>
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <span className="font-medium text-slate-800 text-sm leading-tight">{p.title}</span>
                     <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full border ${sc}`}>{p.status}</span>
@@ -2811,10 +2815,19 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
               ))}
             </div>
 
+            {/* Candidate search */}
+            {posCands.length > 0 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input value={candSearch} onChange={e => setCandSearch(e.target.value)} placeholder="Search candidates by name, email, company or phone…" className="w-full text-sm border border-slate-200 rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition bg-white" />
+                {candSearch && <button onClick={() => setCandSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"><X className="w-3.5 h-3.5" /></button>}
+              </div>
+            )}
+
             {/* Candidate cards */}
             {visibleCands.length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400 text-sm">
-                {posCands.length === 0 ? "No candidates yet. Click 'Add Candidate' to start sourcing." : "No candidates in this stage."}
+                {posCands.length === 0 ? "No candidates yet. Click 'Add Candidate' to start sourcing." : candSearch ? `No candidates match "${candSearch}".` : "No candidates in this stage."}
               </div>
             ) : (
               <div className="space-y-2">
