@@ -2519,6 +2519,19 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     reader.readAsDataURL(file);
   };
 
+  const handlePosApprovalUpload = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const letter = { name: file.name, dataUrl: ev.target.result };
+      const next = positions.map(p => p.id === selPos.id ? { ...p, approvalLetter: letter } : p);
+      await persistPositions(next);
+      setSelPos(prev => ({ ...prev, approvalLetter: letter }));
+      onSaved("Approval letter uploaded.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (loading) return <div className="flex items-center justify-center h-40 text-slate-400 text-sm">Loading recruitment data…</div>;
 
   return (
@@ -2769,7 +2782,13 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {isHR && <select value={selPos.status} onChange={e => updatePosStatus(selPos.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"><option value="Open">Open</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select>}
-                  {selPos.approvalLetter && <a href={selPos.approvalLetter.dataUrl} download={selPos.approvalLetter.name} className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"><Download className="w-3.5 h-3.5" />Approval Letter</a>}
+                  {selPos.approvalLetter
+                    ? <div className="flex items-center gap-1">
+                        <a href={selPos.approvalLetter.dataUrl} download={selPos.approvalLetter.name} className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-l-lg hover:bg-indigo-100 transition"><Download className="w-3.5 h-3.5" />Approval Letter</a>
+                        {canManage && <label className="flex items-center gap-1 text-xs font-medium text-slate-500 bg-white border border-l-0 border-slate-200 px-2 py-1.5 rounded-r-lg hover:bg-slate-50 cursor-pointer transition" title="Replace approval letter"><Upload className="w-3.5 h-3.5" /><input type="file" accept=".pdf,image/*,.doc,.docx" className="hidden" onChange={handlePosApprovalUpload} /></label>}
+                      </div>
+                    : canManage && <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-white border border-dashed border-slate-300 px-3 py-1.5 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer transition"><Paperclip className="w-3.5 h-3.5" />Attach Approval Letter<input type="file" accept=".pdf,image/*,.doc,.docx" className="hidden" onChange={handlePosApprovalUpload} /></label>
+                  }
                   {canManage && selPos.status === "Open" && <button onClick={() => { setShowAddCand(true); setFormErr(""); setCandForm(emptyCandForm); }} className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"><UserPlus className="w-3.5 h-3.5" />Add Candidate</button>}
                 </div>
               </div>
