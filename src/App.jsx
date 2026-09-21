@@ -2428,7 +2428,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
 
   const emptyPosForm = { title: "", department: "", location: "", openings: "1", description: "", requirements: "", approvalLetter: null };
   const [posForm, setPosForm] = useState(emptyPosForm);
-  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", notes: "", resume: null };
+  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", currentSalary: "", expectedSalary: "", notes: "", resume: null };
   const [candForm, setCandForm] = useState(emptyCandForm);
 
   useEffect(() => { loadData(); }, []);
@@ -2492,7 +2492,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     if (!candForm.name.trim()) { setFormErr("Candidate name is required."); return; }
     if (!candForm.phone.trim()) { setFormErr("Phone number is required."); return; }
     setSaving(true); setFormErr("");
-    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), notes: candForm.notes.trim(), resume: candForm.resume || null, stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
+    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), currentSalary: candForm.currentSalary.trim(), expectedSalary: candForm.expectedSalary.trim(), notes: candForm.notes.trim(), resume: candForm.resume || null, stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
     const next = [newCand, ...candidates];
     await persistCandidates(next);
     setSaving(false);
@@ -2817,6 +2817,10 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Current Company</label><input value={candForm.currentCompany} onChange={e => setCandForm(f => ({ ...f, currentCompany: e.target.value }))} placeholder="Company name" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Experience</label><input value={candForm.experience} onChange={e => setCandForm(f => ({ ...f, experience: e.target.value }))} placeholder="e.g. 3 years" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Current Take Home</label><input value={candForm.currentSalary} onChange={e => setCandForm(f => ({ ...f, currentSalary: e.target.value }))} placeholder="e.g. ₹25,000" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Expected Take Home</label><input value={candForm.expectedSalary} onChange={e => setCandForm(f => ({ ...f, expectedSalary: e.target.value }))} placeholder="e.g. ₹30,000" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+              </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><textarea value={candForm.notes} onChange={e => setCandForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any notes about this candidate…" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Resume</label>
                 {candForm.resume ? (
@@ -2853,6 +2857,8 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
               {selCand.experience && <div><span className="text-xs text-slate-400 block mb-0.5">Experience</span>{selCand.experience}</div>}
               {selCand.phone && <div><span className="text-xs text-slate-400 block mb-0.5">Phone</span>{selCand.phone}</div>}
               {selCand.email && <div><span className="text-xs text-slate-400 block mb-0.5">Email</span>{selCand.email}</div>}
+              {selCand.currentSalary && <div><span className="text-xs text-slate-400 block mb-0.5">Current Take Home</span>{selCand.currentSalary}</div>}
+              {selCand.expectedSalary && <div><span className="text-xs text-slate-400 block mb-0.5">Expected Take Home</span>{selCand.expectedSalary}</div>}
             </div>
             {selCand.resume && <a href={selCand.resume.dataUrl} download={selCand.resume.name} className="flex items-center gap-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 hover:bg-indigo-100 transition w-fit"><Download className="w-3.5 h-3.5" />{selCand.resume.name}</a>}
             {selCand.notes && <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600"><span className="font-medium text-slate-700 block mb-1">Notes</span>{selCand.notes}</div>}
