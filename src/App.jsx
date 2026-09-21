@@ -2570,6 +2570,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
             {filtered.length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400 text-sm">No positions match the selected filters.</div>
             ) : (
+              <>
               <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-sm min-w-max">
                   <thead>
@@ -2625,6 +2626,58 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                   </tfoot>
                 </table>
               </div>
+              {/* Candidate details table */}
+              {(() => {
+                const allCands = filtered.flatMap(p => candidates.filter(c => c.positionId === p.id).map(c => ({ ...c, posTitle: p.title, posDept: p.department })));
+                if (allCands.length === 0) return null;
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                      <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Candidate Details</h3>
+                    </div>
+                    <table className="w-full text-sm min-w-max">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">#</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Candidate Name</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Position</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Department</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Email</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Phone</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Current Company</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Experience</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Current Salary</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Expected Salary</th>
+                          <th className="text-center text-xs font-semibold text-slate-500 px-3 py-3">Stage</th>
+                          <th className="text-left text-xs font-semibold text-slate-500 px-3 py-3">Applied</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {allCands.map((c, idx) => {
+                          const stg = REC_STAGES.find(s => s.id === c.stage);
+                          return (
+                            <tr key={c.id} className="hover:bg-slate-50 transition">
+                              <td className="px-4 py-3 text-slate-400 text-xs">{idx + 1}</td>
+                              <td className="px-3 py-3 font-medium text-slate-800 whitespace-nowrap">{c.name}</td>
+                              <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{c.posTitle}</td>
+                              <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.posDept}</td>
+                              <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.email || "—"}</td>
+                              <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.phone || "—"}</td>
+                              <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.currentCompany || "—"}</td>
+                              <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.experience || "—"}</td>
+                              <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{c.currentSalary || "—"}</td>
+                              <td className="px-3 py-3 text-indigo-600 font-medium whitespace-nowrap">{c.expectedSalary || "—"}</td>
+                              <td className="px-3 py-3 text-center whitespace-nowrap"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${stg ? stg.cls : "bg-slate-100 text-slate-500 border-slate-200"}`}>{stg ? stg.label : c.stage}</span></td>
+                              <td className="px-3 py-3 text-slate-400 text-xs whitespace-nowrap">{recFmtDate(c.addedAt)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+              </>
             )}
           </div>
         );
