@@ -2428,7 +2428,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
 
   const emptyPosForm = { title: "", department: "", location: "", openings: "1", description: "", requirements: "", approvalLetter: null };
   const [posForm, setPosForm] = useState(emptyPosForm);
-  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", notes: "" };
+  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", notes: "", resume: null };
   const [candForm, setCandForm] = useState(emptyCandForm);
 
   useEffect(() => { loadData(); }, []);
@@ -2492,7 +2492,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     if (!candForm.name.trim()) { setFormErr("Candidate name is required."); return; }
     if (!candForm.phone.trim()) { setFormErr("Phone number is required."); return; }
     setSaving(true); setFormErr("");
-    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), notes: candForm.notes.trim(), stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
+    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), notes: candForm.notes.trim(), resume: candForm.resume || null, stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
     const next = [newCand, ...candidates];
     await persistCandidates(next);
     setSaving(false);
@@ -2818,6 +2818,19 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Experience</label><input value={candForm.experience} onChange={e => setCandForm(f => ({ ...f, experience: e.target.value }))} placeholder="e.g. 3 years" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
               </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><textarea value={candForm.notes} onChange={e => setCandForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any notes about this candidate…" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Resume</label>
+                {candForm.resume ? (
+                  <div className="flex items-center gap-2 text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                    <Paperclip className="w-3.5 h-3.5 text-indigo-600 shrink-0" /><span className="text-indigo-700 flex-1 truncate">{candForm.resume.name}</span>
+                    <button onClick={() => setCandForm(f => ({ ...f, resume: null }))} className="text-slate-400 hover:text-rose-500"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 text-xs text-slate-500 border border-dashed border-slate-300 rounded-xl px-3 py-3 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition">
+                    <Upload className="w-4 h-4 text-slate-400" />Upload resume (PDF / DOC / image)
+                    <input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => setCandForm(f => ({ ...f, resume: { name: file.name, dataUrl: ev.target.result } })); reader.readAsDataURL(file); }} />
+                  </label>
+                )}
+              </div>
             </div>
             <div className="flex gap-2 pt-1">
               <button onClick={() => setShowAddCand(false)} className="flex-1 text-sm border border-slate-200 rounded-xl py-2.5 text-slate-600 hover:bg-slate-50 transition">Cancel</button>
@@ -2841,6 +2854,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
               {selCand.phone && <div><span className="text-xs text-slate-400 block mb-0.5">Phone</span>{selCand.phone}</div>}
               {selCand.email && <div><span className="text-xs text-slate-400 block mb-0.5">Email</span>{selCand.email}</div>}
             </div>
+            {selCand.resume && <a href={selCand.resume.dataUrl} download={selCand.resume.name} className="flex items-center gap-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 hover:bg-indigo-100 transition w-fit"><Download className="w-3.5 h-3.5" />{selCand.resume.name}</a>}
             {selCand.notes && <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600"><span className="font-medium text-slate-700 block mb-1">Notes</span>{selCand.notes}</div>}
             <div className="flex items-center gap-2"><span className="text-xs font-medium text-slate-600">Current Stage</span><span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${recStageCls(selCand.stage)}`}>{recStageLabel(selCand.stage)}</span></div>
             {canManage && selCand.stage !== "joined" && selCand.stage !== "rejected" && (
