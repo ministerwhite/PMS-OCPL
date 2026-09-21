@@ -76,12 +76,18 @@ const cgpaToBand = (c) => c >= 4.5 ? 5 : c >= 3.5 ? 4 : c >= 2.5 ? 3 : c >= 1.5 
 const rKey = (cid, eid) => `${cid}::${eid}`;
 const defaultRecord = (type) => type === "Goal Setting" ? { kras: deep(KRA_TEMPLATE), status: "Draft", note: "" } : type === "Probation to Confirmation" ? { ptc: {}, stage: "self" } : { review: {}, stage: "self" };
 
-const mapUserRow = (r) => ({
-  id: r.id, name: r.name, employeeId: r.employee_id, email: r.email,
-  department: r.department, designation: r.designation, role: r.role,
-  reportingManager: r.reporting_manager, reportingManagerId: r.reporting_manager_id,
-  reportingManagerEmail: r.reporting_manager_email,
-});
+const REC_SENTINEL = "__rec__";
+const mapUserRow = (r) => {
+  const isRec = (r.designation || "").startsWith(REC_SENTINEL);
+  return {
+    id: r.id, name: r.name, employeeId: r.employee_id, email: r.email,
+    department: r.department,
+    designation: isRec ? (r.designation || "").slice(REC_SENTINEL.length) : (r.designation || ""),
+    role: isRec ? "recruiter" : r.role,
+    reportingManager: r.reporting_manager, reportingManagerId: r.reporting_manager_id,
+    reportingManagerEmail: r.reporting_manager_email,
+  };
+};
 const mapCycleRow = (r) => ({
   id: r.id, year: r.year, type: r.type, status: r.status, name: r.name || "",
   start: r.start_date, end: r.end_date, participants: r.participants || [],
@@ -1325,9 +1331,12 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
   const isValid = REQUIRED_FIELDS.every(k => (form[k] || "").trim()) && !isDupId;
   const addUser = async () => {
     if (!isValid) return;
+    const isRecruiter = form.role === "recruiter";
     const { data, error } = await supabase.rpc("create_user", {
       p_name: form.name, p_employee_id: form.employeeId, p_email: form.email,
-      p_department: form.department, p_designation: form.designation, p_role: form.role,
+      p_department: form.department,
+      p_designation: isRecruiter ? REC_SENTINEL + form.designation : form.designation,
+      p_role: isRecruiter ? "employee" : form.role,
       p_reporting_manager_id: form.reportingManagerId, p_password: form.password || "Password@123",
     });
     if (error) {
@@ -2995,10 +3004,13 @@ export default function App() {
   };
 
   const editUser = async (oldUser, newData) => {
+    const isRecruiter = newData.role === "recruiter";
     const { error } = await supabase.rpc("edit_user", {
       p_id: oldUser.id, p_name: newData.name,
-      p_email: newData.email, p_department: newData.department, p_designation: newData.designation,
-      p_role: newData.role, p_reporting_manager_id: newData.reportingManagerId,
+      p_email: newData.email, p_department: newData.department,
+      p_designation: isRecruiter ? REC_SENTINEL + newData.designation : newData.designation,
+      p_role: isRecruiter ? "employee" : newData.role,
+      p_reporting_manager_id: newData.reportingManagerId,
       p_password: (newData.password || "").trim() ? newData.password : null,
     });
     if (error) {
