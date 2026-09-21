@@ -2544,6 +2544,27 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
         const totalCands = filtered.reduce((s, p) => s + candidates.filter(c => c.positionId === p.id).length, 0);
         const totalJoined = filtered.reduce((s, p) => s + candidates.filter(c => c.positionId === p.id && c.stage === "joined").length, 0);
         const totalOpen = filtered.filter(p => p.status === "Open").length;
+        const downloadReport = () => {
+          const stageLabels = REC_STAGES.map(s => s.label);
+          const posRows = filtered.map(p => {
+            const pc = candidates.filter(c => c.positionId === p.id);
+            const row = { Position: p.title, Department: p.department, Location: p.location || "", Openings: p.openings, Status: p.status };
+            REC_STAGES.forEach(s => { row[s.label] = pc.filter(c => c.stage === s.id).length || 0; });
+            row["Total Candidates"] = pc.length;
+            row["Filled"] = pc.filter(c => c.stage === "joined").length;
+            row["Created"] = recFmtDate(p.createdAt);
+            row["Created By"] = p.createdByName || "";
+            return row;
+          });
+          const allCands = filtered.flatMap(p => candidates.filter(c => c.positionId === p.id).map(c => {
+            const stg = REC_STAGES.find(s => s.id === c.stage);
+            return { "Candidate Name": c.name, Position: p.title, Department: p.department, Email: c.email || "", Phone: c.phone || "", "Current Company": c.currentCompany || "", Experience: c.experience || "", "Current Salary": c.currentSalary || "", "Expected Salary": c.expectedSalary || "", Stage: stg ? stg.label : c.stage, Notes: c.notes || "", "Applied Date": recFmtDate(c.addedAt) };
+          }));
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(posRows), "Position Summary");
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allCands), "Candidate Details");
+          XLSX.writeFile(wb, `Recruitment_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        };
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -2559,13 +2580,20 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <select value={rptDeptF} onChange={e => setRptDeptF(e.target.value)} className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                {deptList.map(d => <option key={d} value={d}>{d === "all" ? "All Departments" : d}</option>)}
-              </select>
-              <select value={rptStatusF} onChange={e => setRptStatusF(e.target.value)} className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                <option value="all">All Statuses</option><option value="Open">Open</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option>
-              </select>
+            <div className="flex gap-2 flex-wrap items-center justify-between">
+              <div className="flex gap-2 flex-wrap">
+                <select value={rptDeptF} onChange={e => setRptDeptF(e.target.value)} className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                  {deptList.map(d => <option key={d} value={d}>{d === "all" ? "All Departments" : d}</option>)}
+                </select>
+                <select value={rptStatusF} onChange={e => setRptStatusF(e.target.value)} className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                  <option value="all">All Statuses</option><option value="Open">Open</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option>
+                </select>
+              </div>
+              {filtered.length > 0 && (
+                <button onClick={downloadReport} className="flex items-center gap-1.5 text-xs font-medium bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700 transition">
+                  <Download className="w-3.5 h-3.5" /> Download Excel
+                </button>
+              )}
             </div>
             {filtered.length === 0 ? (
               <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400 text-sm">No positions match the selected filters.</div>
