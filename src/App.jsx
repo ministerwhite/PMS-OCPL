@@ -47,6 +47,7 @@ const USER_ROLE = {
   employee: { label: "Employee", color: "bg-slate-100 text-slate-600 border-slate-200" },
   manager: { label: "Manager", color: "bg-sky-100 text-sky-700 border-sky-200" },
   hr: { label: "HR", color: "bg-violet-100 text-violet-700 border-violet-200" },
+  recruiter: { label: "Recruiter", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
 };
 const REQUIRED_FIELDS = ["name", "employeeId", "department", "designation", "email", "reportingManagerId"];
 const USER_COLUMNS = ["Employee Name", "Employee ID", "Email ID", "Department", "Designation", "Role", "Reporting Manager Emp ID", "Password"];
@@ -1498,7 +1499,7 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
         <p className="text-xs font-medium text-slate-400 uppercase">Employee</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {rf("name", "Employee Name")}{rf("employeeId", "Employee ID")}{rf("email", "Email ID")}{rf("department", "Department")}{rf("designation", "Designation")}
-          <div><label className="text-xs font-medium text-slate-500 block mb-1">Role</label><select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option></select></div>
+          <div><label className="text-xs font-medium text-slate-500 block mb-1">Role</label><select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option><option value="recruiter">Recruiter</option></select></div>
           <div className="sm:col-span-2"><label className="text-xs font-medium text-slate-500 block mb-1">Password <span className="text-rose-500">*</span></label><div className="relative"><input type="text" value={form.password || ""} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Default: Password@123" className={`w-full text-sm border rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 ${!(form.password||"").trim() ? "border-slate-200 focus:ring-indigo-200" : "border-slate-200 focus:ring-indigo-200"}`} /><KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" /></div><p className="text-xs text-slate-400 mt-1">Leave blank to use default: <span className="font-medium">Password@123</span></p></div>
         </div>
         <p className="text-xs font-medium text-slate-400 uppercase pt-1">Reporting Manager</p>
@@ -1579,6 +1580,7 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
                         <option value="employee">Employee</option>
                         <option value="manager">Manager</option>
                         <option value="hr">HR</option>
+                        <option value="recruiter">Recruiter</option>
                       </select>
                     </div>
                   </div>
@@ -2395,8 +2397,8 @@ function recStageLabel(id) { return (REC_STAGES.find(s => s.id === id) || { labe
 function recFmtDate(iso) { try { const d = new Date(iso); const m = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]; return `${String(d.getDate()).padStart(2,"0")}-${m}-${d.getFullYear()}`; } catch { return "—"; } }
 
 function RecruitmentPage({ me, users, onSaved, onError }) {
-  const isHR = me.role === "hr";
-  const canManage = me.role === "hr" || me.role === "manager";
+  const isHR = me.role === "hr" || me.role === "recruiter";
+  const canManage = me.role === "hr" || me.role === "manager" || me.role === "recruiter";
   const depts = [...new Set(users.map(u => u.department).filter(Boolean))].sort();
 
   const [positions, setPositions] = useState([]);
@@ -3190,7 +3192,7 @@ export default function App() {
       <div className="max-w-sm w-full"><Notice icon={AlertCircle} tone="rose">{loadError}</Notice></div>
     </div>
   );
-  if (!me) return <LoginScreen users={users} onLogin={(id) => { setCurrentUserId(id); setView("home"); }} />;
+  if (!me) return <LoginScreen users={users} onLogin={(id) => { setCurrentUserId(id); const u = users.find(u => u.employeeId === id); setView(u?.role === "recruiter" ? "recruitment" : "home"); }} />;
 
   const myEmailCount = emails.filter(e => (e.to || "").toLowerCase() === (me.email || "").toLowerCase()).length;
   const hasApprovedKRA = cycles.some(c => c.type === "Goal Setting" && (c.participants || []).includes(me.employeeId) && records[rKey(c.id, me.employeeId)]?.status === "Approved");
@@ -3198,6 +3200,8 @@ export default function App() {
     ? [{ id: "home", label: "Home" }, { id: "cycles", label: "Cycles" }, { id: "approvals", label: "Approvals" }, { id: "users", label: "Users" }, { id: "reports", label: "Reports" }, { id: "templates", label: "Templates" }, { id: "recruitment", label: "Recruitment" }]
     : me.role === "manager"
       ? [{ id: "home", label: "Home" }, { id: "tasks", label: "My Tasks" }, { id: "team", label: "Team" }, { id: "completed", label: "Completed" }, ...(hasApprovedKRA ? [{ id: "mykra", label: "My KRA" }] : []), { id: "recruitment", label: "Recruitment" }]
+    : me.role === "recruiter"
+      ? [{ id: "recruitment", label: "Recruitment" }]
       : [{ id: "home", label: "Home" }, { id: "tasks", label: "My Tasks" }, { id: "completed", label: "Completed" }, ...(hasApprovedKRA ? [{ id: "mykra", label: "My KRA" }] : [])];
   const tabs = [...baseTabs, { id: "inbox", label: `Inbox${myEmailCount ? ` (${myEmailCount})` : ""}` }];
 
@@ -3205,7 +3209,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <button onClick={() => setView("home")} className="flex items-center shrink-0"><img src={LOGO_STRIP} alt="Brand logos" className="h-8 w-auto object-contain" /></button>
+          <button onClick={() => setView(me.role === "recruiter" ? "recruitment" : "home")} className="flex items-center shrink-0"><img src={LOGO_STRIP} alt="Brand logos" className="h-8 w-auto object-contain" /></button>
           <nav className="flex items-center gap-1 overflow-x-auto">{tabs.map(t => <button key={t.id} onClick={() => setView(t.id)} className={`text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap transition ${view === t.id ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>{t.label}</button>)}</nav>
           <button onClick={() => { setCurrentUserId(null); }} className="text-xs font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 shrink-0"><LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Sign out</span></button>
         </div>
