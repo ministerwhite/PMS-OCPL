@@ -2427,7 +2427,8 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
   const [rptDeptF, setRptDeptF] = useState("all");
   const [rptStatusF, setRptStatusF] = useState("all");
 
-  const emptyPosForm = { title: "", department: "", location: "", openings: "1", description: "", requirements: "", approvalLetter: null };
+  const REC_COMPANIES = ["Otto", "Minister White"];
+  const emptyPosForm = { title: "", company: "", department: "", location: "", openings: "1", description: "", requirements: "", approvalLetter: null };
   const [posForm, setPosForm] = useState(emptyPosForm);
   const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", currentSalary: "", expectedSalary: "", notes: "", resume: null };
   const [candForm, setCandForm] = useState(emptyCandForm);
@@ -2475,9 +2476,10 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
 
   const savePosition = async () => {
     if (!posForm.title.trim()) { setFormErr("Position title is required."); return; }
+    if (!posForm.company) { setFormErr("Company is required."); return; }
     if (!posForm.department.trim()) { setFormErr("Department is required."); return; }
     setSaving(true); setFormErr("");
-    const newPos = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), title: posForm.title.trim(), department: posForm.department.trim(), location: posForm.location.trim(), openings: parseInt(posForm.openings) || 1, description: posForm.description.trim(), requirements: posForm.requirements.trim(), status: "Open", approvalLetter: posForm.approvalLetter, createdBy: me.employeeId, createdByName: me.name };
+    const newPos = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), title: posForm.title.trim(), company: posForm.company, department: posForm.department.trim(), location: posForm.location.trim(), openings: parseInt(posForm.openings) || 1, description: posForm.description.trim(), requirements: posForm.requirements.trim(), status: "Open", approvalLetter: posForm.approvalLetter, createdBy: me.employeeId, createdByName: me.name };
     const next = [newPos, ...positions];
     await persistPositions(next);
     setSaving(false);
@@ -2565,7 +2567,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
           const stageLabels = REC_STAGES.map(s => s.label);
           const posRows = filtered.map(p => {
             const pc = candidates.filter(c => c.positionId === p.id);
-            const row = { Position: p.title, Department: p.department, Location: p.location || "", Openings: p.openings, Status: p.status };
+            const row = { Company: p.company || "", Position: p.title, Department: p.department, Location: p.location || "", Openings: p.openings, Status: p.status };
             REC_STAGES.forEach(s => { row[s.label] = pc.filter(c => c.stage === s.id).length || 0; });
             row["Total Candidates"] = pc.length;
             row["Filled"] = pc.filter(c => c.stage === "joined").length;
@@ -2757,6 +2759,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                     <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full border ${sc}`}>{p.status}</span>
                   </div>
                   <div className="text-xs text-slate-500 space-y-0.5 mb-2">
+                    {p.company && <div className="flex items-center gap-1 text-indigo-600 font-medium"><Briefcase className="w-3 h-3 shrink-0" />{p.company}</div>}
                     <div className="flex items-center gap-1"><Users className="w-3 h-3 shrink-0" />{p.department}</div>
                     {p.location && <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" />{p.location}</div>}
                   </div>
@@ -2778,6 +2781,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 <div>
                   <h3 className="font-semibold text-slate-900">{selPos.title}</h3>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-slate-500">
+                    {selPos.company && <span className="flex items-center gap-1 font-medium text-indigo-600"><Briefcase className="w-3.5 h-3.5" />{selPos.company}</span>}
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{selPos.department}</span>
                     {selPos.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{selPos.location}</span>}
                     <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" />{selPos.openings} opening{selPos.openings !== 1 ? "s" : ""}</span>
@@ -2878,6 +2882,12 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
             </div>
             {formErr && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{formErr}</p>}
             <div className="space-y-3">
+              <div><label className="block text-xs font-medium text-slate-600 mb-1">Company *</label>
+                <select value={posForm.company} onChange={e => setPosForm(f => ({ ...f, company: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition bg-white">
+                  <option value="">Select company…</option>
+                  {REC_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Position Title *</label><input value={posForm.title} onChange={e => setPosForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Store Manager" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Department *</label>
