@@ -2450,11 +2450,11 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
 
   const persistPositions = async (next) => {
     setPositions(next);
-    try { await supabase.from("emails").insert({ to: REC_STORE_TO, event: "rec-positions", body: JSON.stringify(next), sent_at: new Date().toISOString(), deliver: false }); } catch (e) {}
+    try { await supabase.from("emails").insert({ to: REC_STORE_TO, event: "rec-positions", subject: "rec-data", body: JSON.stringify(next), sent_at: new Date().toISOString(), deliver: false }); } catch (e) {}
   };
   const persistCandidates = async (next) => {
     setCandidates(next);
-    try { await supabase.from("emails").insert({ to: REC_STORE_TO, event: "rec-candidates", body: JSON.stringify(next), sent_at: new Date().toISOString(), deliver: false }); } catch (e) {}
+    try { await supabase.from("emails").insert({ to: REC_STORE_TO, event: "rec-candidates", subject: "rec-data", body: JSON.stringify(next), sent_at: new Date().toISOString(), deliver: false }); } catch (e) {}
   };
 
   const visiblePositions = (isHR ? positions : positions.filter(p => p.department === me.department))
