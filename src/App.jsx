@@ -703,20 +703,25 @@ function ReviewActivity({ subject, record, kras, onChange, onSaved, actorRole, h
   );
 }
 
-// ---- Probation to Confirmation activity ---- (manager-only rating)
+// ---- Probation to Confirmation activity ---- (manager rates → HR approves)
 function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) {
   const ptc = record.ptc || {};
   const stage = record.stage || "manager";
+  const [hrComment, setHrComment] = useState("");
   const setRating = (id, v) => onChange({ ...record, ptc: { ...ptc, [id]: { ...(ptc[id] || {}), mgrRating: v } } });
   const setMgrComment = (v) => onChange({ ...record, ptc: { ...ptc, __mgrComment: v } });
   const mgrComment = ptc.__mgrComment || "";
+  const hrNote = ptc.__hrNote || "";
   const mgrDone = PTC_CRITERIA.every(c => ptc[c.id]?.mgrRating);
   const mgrTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
   const maxTotal = PTC_CRITERIA.length * 5;
 
-  const finalize = () => { onChange({ ...record, stage: "done", managerApprovedAt: new Date().toISOString() }, { immediate: true }); onSaved("Assessment complete."); notify && notify("ptc_complete"); };
+  const submitToHR = () => { onChange({ ...record, stage: "hr", ptc: { ...ptc, __hrNote: "" }, managerSubmittedAt: new Date().toISOString() }, { immediate: true }); onSaved("Sent to HR for approval."); notify && notify("ptc_to_hr"); };
+  const approveHR = () => { onChange({ ...record, stage: "done", ptc: { ...ptc, __hrNote: "" }, hrApprovedAt: new Date().toISOString() }, { immediate: true }); onSaved("PTC approved."); notify && notify("ptc_complete"); };
+  const rejectHR = () => { if (!hrComment.trim()) return; onChange({ ...record, stage: "manager", ptc: { ...ptc, __hrNote: hrComment.trim() } }, { immediate: true }); setHrComment(""); onSaved("Sent back to manager."); notify && notify("ptc_hr_rejected", { note: hrComment.trim() }); };
 
   const managerWorking = actorRole === "manager" && stage === "manager";
+  const hrWorking = actorRole === "hr" && stage === "hr";
 
   return (
     <div className="space-y-4">
@@ -733,8 +738,11 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
         </div>
       </div>
 
-      {actorRole === "self" && stage === "manager" && <Notice icon={Clock}>Your probation assessment is pending your reporting manager's review.</Notice>}
-      {actorRole === "self" && stage === "done" && <Notice icon={CheckCircle2} tone="emerald">Your probation assessment has been completed by your manager.</Notice>}
+      {actorRole === "self" && <Notice icon={Clock}>Your probation assessment is being completed by your reporting manager and will be reviewed by HR.</Notice>}
+      {actorRole === "manager" && stage === "hr" && <Notice icon={Clock}>Submitted to HR for approval.</Notice>}
+      {actorRole === "manager" && stage === "manager" && hrNote && <Notice icon={AlertCircle} tone="rose"><p><span className="font-medium">HR sent back:</span> {hrNote}</p></Notice>}
+      {actorRole === "hr" && stage === "manager" && <Notice icon={Clock}>Assessment in progress with the manager.</Notice>}
+      {actorRole === "hr" && stage === "done" && <Notice icon={CheckCircle2} tone="emerald">PTC approved.</Notice>}
 
       {PTC_CRITERIA.map((c, i) => {
         const r = ptc[c.id] || {};
@@ -758,8 +766,20 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
         <div className="bg-teal-50/60 rounded-lg p-3 space-y-2"><div className="text-xs font-medium text-slate-600">Manager feedback</div>{managerWorking ? <textarea value={mgrComment} onChange={e => setMgrComment(e.target.value)} rows={3} placeholder="Overall feedback on the employee's probation period…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" /> : <p className="text-sm text-slate-600">{mgrComment || <span className="text-slate-400">—</span>}</p>}</div>
       </div>
 
-      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={finalize} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Finalize assessment" : "Rate all 7 criteria first"}</button></div>}
-      {stage === "done" && <Notice icon={CheckCircle2} tone="emerald">Probation assessment complete.</Notice>}
+      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={submitToHR} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Submit to HR" : "Rate all 7 criteria first"}</button></div>}
+
+      {hrWorking && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-700">HR Decision</p>
+          <textarea value={hrComment} onChange={e => setHrComment(e.target.value)} rows={2} placeholder="Rejection reason (required to send back)…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+          <div className="flex gap-2">
+            <button onClick={rejectHR} disabled={!hrComment.trim()} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 border ${hrComment.trim() ? "border-rose-300 text-rose-600 hover:bg-rose-50" : "border-slate-200 text-slate-300 cursor-not-allowed"}`}>Send back to Manager</button>
+            <button onClick={approveHR} className="flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"><CheckCircle2 className="w-4 h-4" /> Approve</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "done" && <Notice icon={CheckCircle2} tone="emerald">Probation assessment complete — approved by HR.</Notice>}
     </div>
   );
 }
@@ -1003,7 +1023,7 @@ function TeamPage({ me, users, cycles, getRecord, setRecord, onSaved, approvedKR
 function ApprovalsPage({ users, cycles, getRecord, setRecord, onSaved, approvedKRAsFor, notify }) {
   const [open, setOpen] = useState(null);
   const items = [];
-  cycles.filter(c => c.status === "Active" && c.type === "Annual Performance Review").forEach(c => {
+  cycles.filter(c => c.status === "Active" && (c.type === "Annual Performance Review" || c.type === "Probation to Confirmation")).forEach(c => {
     (c.participants || []).forEach(eid => {
       const rec = getRecord(c, eid);
       if (rec.stage === "hr") { const u = users.find(x => x.employeeId === eid); if (u) items.push({ cycle: c, subject: u }); }
@@ -1707,7 +1727,7 @@ function KRAViewModal({ subject, cycle, record, kras, onClose, onDownload }) {
         <div className="bg-slate-50 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div><span className="text-slate-400">Submitted: </span><span className="text-slate-700 font-medium">{fmtDT(isGoal ? record?.submittedAt : record?.selfSubmittedAt)}</span></div>
           <div><span className="text-slate-400">Manager approved: </span><span className="text-slate-700 font-medium">{fmtDT(isGoal ? record?.approvedAt : record?.managerApprovedAt)}</span></div>
-          {!isGoal && cycle.type === "Annual Performance Review" && <div><span className="text-slate-400">HR approved: </span><span className="text-slate-700 font-medium">{fmtDT(record?.hrApprovedAt)}</span></div>}
+          {!isGoal && (cycle.type === "Annual Performance Review" || cycle.type === "Probation to Confirmation") && <div><span className="text-slate-400">HR approved: </span><span className="text-slate-700 font-medium">{fmtDT(record?.hrApprovedAt)}</span></div>}
         </div>
 
         {isPtc ? (() => {
