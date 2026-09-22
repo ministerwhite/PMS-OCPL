@@ -74,7 +74,7 @@ const deep = (o) => JSON.parse(JSON.stringify(o));
 const totalWeight = (kras) => kras.reduce((a, k) => a + k.kpis.reduce((b, p) => b + Number(p.weightage || 0), 0), 0);
 const cgpaToBand = (c) => c >= 4.5 ? 5 : c >= 3.5 ? 4 : c >= 2.5 ? 3 : c >= 1.5 ? 2 : 1;
 const rKey = (cid, eid) => `${cid}::${eid}`;
-const defaultRecord = (type) => type === "Goal Setting" ? { kras: deep(KRA_TEMPLATE), status: "Draft", note: "" } : type === "Probation to Confirmation" ? { ptc: {}, stage: "self" } : { review: {}, stage: "self" };
+const defaultRecord = (type) => type === "Goal Setting" ? { kras: deep(KRA_TEMPLATE), status: "Draft", note: "" } : type === "Probation to Confirmation" ? { ptc: {}, stage: "manager" } : { review: {}, stage: "self" };
 
 const REC_SENTINEL = "__rec__";
 const mapUserRow = (r) => {
@@ -210,7 +210,7 @@ function recStatus(cycle, rec) {
     return { label: rec.status, tone };
   }
   const m = { self: ["Self-assessment", "slate"], manager: ["With manager", "sky"], hr: ["With HR", "amber"], done: ["Completed", "emerald"] };
-  const [label, tone] = m[rec.stage || "self"] || ["—", "slate"];
+  const [label, tone] = m[rec.stage || "manager"] || ["—", "slate"];
   return { label, tone };
 }
 
@@ -703,26 +703,20 @@ function ReviewActivity({ subject, record, kras, onChange, onSaved, actorRole, h
   );
 }
 
-// ---- Probation to Confirmation activity ----
+// ---- Probation to Confirmation activity ---- (manager-only rating)
 function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) {
   const ptc = record.ptc || {};
-  const stage = record.stage || "self";
-  const setRating = (id, who, v) => onChange({ ...record, ptc: { ...ptc, [id]: { ...(ptc[id] || {}), [who]: v } } });
-  const setOverall = (f, v) => onChange({ ...record, ptc: { ...ptc, [f]: v } });
-  const selfComment = ptc.__selfComment || "";
+  const stage = record.stage || "manager";
+  const setRating = (id, v) => onChange({ ...record, ptc: { ...ptc, [id]: { ...(ptc[id] || {}), mgrRating: v } } });
+  const setMgrComment = (v) => onChange({ ...record, ptc: { ...ptc, __mgrComment: v } });
   const mgrComment = ptc.__mgrComment || "";
-  const selfDone = PTC_CRITERIA.every(c => ptc[c.id]?.selfRating);
   const mgrDone = PTC_CRITERIA.every(c => ptc[c.id]?.mgrRating);
-  const selfTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.selfRating) || 0), 0);
   const mgrTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
   const maxTotal = PTC_CRITERIA.length * 5;
 
-  const submitSelf = () => { onChange({ ...record, stage: "manager", selfSubmittedAt: new Date().toISOString() }, { immediate: true }); onSaved("Submitted to manager."); notify && notify("ptc_self_submitted"); };
   const finalize = () => { onChange({ ...record, stage: "done", managerApprovedAt: new Date().toISOString() }, { immediate: true }); onSaved("Assessment complete."); notify && notify("ptc_complete"); };
 
-  const selfEditing = actorRole === "self" && stage === "self";
   const managerWorking = actorRole === "manager" && stage === "manager";
-  const showMgr = stage === "manager" || stage === "done";
 
   return (
     <div className="space-y-4">
@@ -739,44 +733,32 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
         </div>
       </div>
 
-      {actorRole === "self" && stage === "manager" && <Notice icon={Clock}>Submitted. Waiting for your reporting manager's assessment.</Notice>}
-      {actorRole === "manager" && stage === "self" && <Notice icon={Clock}>Waiting for the employee's self-assessment.</Notice>}
+      {actorRole === "self" && stage === "manager" && <Notice icon={Clock}>Your probation assessment is pending your reporting manager's review.</Notice>}
+      {actorRole === "self" && stage === "done" && <Notice icon={CheckCircle2} tone="emerald">Your probation assessment has been completed by your manager.</Notice>}
 
       {PTC_CRITERIA.map((c, i) => {
         const r = ptc[c.id] || {};
         return (
           <div key={c.id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-start gap-2"><span className="w-6 h-6 rounded-lg bg-teal-100 text-teal-700 text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span><div><p className="text-sm font-medium text-slate-800">{c.title}</p><p className="text-xs text-slate-500">{c.desc}</p></div></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-slate-50 rounded-lg p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><User className="w-3.5 h-3.5" /> Self rating</div>
-                {selfEditing ? <RatingPicker value={r.selfRating} onChange={v => setRating(c.id, "selfRating", v)} scale={PTC_SCALE} />
-                  : (r.selfRating ? <Pill className={ptcBand(r.selfRating).color}><Star className="w-3 h-3" /> {r.selfRating} · {ptcBand(r.selfRating).label}</Pill> : <span className="text-xs text-slate-400">Not rated</span>)}
-              </div>
-              {showMgr && (
-                <div className="bg-teal-50/60 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><UserCheck className="w-3.5 h-3.5" /> Manager rating</div>
-                  {managerWorking ? <RatingPicker value={r.mgrRating} onChange={v => setRating(c.id, "mgrRating", v)} scale={PTC_SCALE} />
-                    : (r.mgrRating ? <Pill className={ptcBand(r.mgrRating).color}><Star className="w-3 h-3" /> {r.mgrRating} · {ptcBand(r.mgrRating).label}</Pill> : <span className="text-xs text-slate-400">Not rated</span>)}
-                </div>
-              )}
+            <div className="bg-teal-50/60 rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><UserCheck className="w-3.5 h-3.5" /> Manager rating</div>
+              {managerWorking ? <RatingPicker value={r.mgrRating} onChange={v => setRating(c.id, v)} scale={PTC_SCALE} />
+                : (r.mgrRating ? <Pill className={ptcBand(r.mgrRating).color}><Star className="w-3 h-3" /> {r.mgrRating} · {ptcBand(r.mgrRating).label}</Pill> : <span className="text-xs text-slate-400">Not rated</span>)}
             </div>
           </div>
         );
       })}
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 grid grid-cols-2 gap-2">
-        <div className="bg-slate-50 rounded-lg p-3"><div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3.5 h-3.5" /> Self total</div><div className="text-xl font-semibold text-slate-800 mt-0.5">{selfTotal}<span className="text-xs font-normal text-slate-400"> / {maxTotal}</span></div></div>
-        {showMgr && <div className="bg-teal-50/60 rounded-lg p-3"><div className="text-xs text-slate-500 flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Manager total</div><div className="text-xl font-semibold text-slate-800 mt-0.5">{mgrTotal}<span className="text-xs font-normal text-slate-400"> / {maxTotal}</span></div></div>}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-teal-50/60 rounded-lg p-3"><div className="text-xs text-slate-500 flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> Manager total</div><div className="text-xl font-semibold text-slate-800 mt-0.5">{mgrTotal}<span className="text-xs font-normal text-slate-400"> / {maxTotal}</span></div></div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-        <div className="bg-slate-50 rounded-lg p-3 space-y-2"><div className="text-xs font-medium text-slate-600">Employee remarks</div>{selfEditing ? <textarea value={selfComment} onChange={e => setOverall("__selfComment", e.target.value)} rows={2} placeholder="Your overall remarks (optional)…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" /> : <p className="text-sm text-slate-600">{selfComment || <span className="text-slate-400">—</span>}</p>}</div>
-        {showMgr && <div className="bg-teal-50/60 rounded-lg p-3 space-y-2"><div className="text-xs font-medium text-slate-600">Manager feedback</div>{managerWorking ? <textarea value={mgrComment} onChange={e => setOverall("__mgrComment", e.target.value)} rows={3} placeholder="Overall feedback…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" /> : <p className="text-sm text-slate-600">{mgrComment || <span className="text-slate-400">—</span>}</p>}</div>}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-teal-50/60 rounded-lg p-3 space-y-2"><div className="text-xs font-medium text-slate-600">Manager feedback</div>{managerWorking ? <textarea value={mgrComment} onChange={e => setMgrComment(e.target.value)} rows={3} placeholder="Overall feedback on the employee's probation period…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" /> : <p className="text-sm text-slate-600">{mgrComment || <span className="text-slate-400">—</span>}</p>}</div>
       </div>
 
-      {selfEditing && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={submitSelf} disabled={!selfDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${selfDone ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {selfDone ? "Submit" : "Rate all 7 criteria"}</button></div>}
-      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={finalize} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Finalize" : "Rate all 7 criteria"}</button></div>}
+      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={finalize} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Finalize assessment" : "Rate all 7 criteria first"}</button></div>}
       {stage === "done" && <Notice icon={CheckCircle2} tone="emerald">Probation assessment complete.</Notice>}
     </div>
   );
@@ -1741,13 +1723,12 @@ function KRAViewModal({ subject, cycle, record, kras, onClose, onDownload }) {
               </div>
               <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead><tr className="bg-slate-50 text-slate-500 text-left"><th className="px-3 py-2">Criteria</th><th className="px-3 py-2 text-center">Self</th><th className="px-3 py-2 text-center">Manager</th></tr></thead>
+                  <thead><tr className="bg-slate-50 text-slate-500 text-left"><th className="px-3 py-2">Criteria</th><th className="px-3 py-2 text-center">Manager Rating</th></tr></thead>
                   <tbody>{PTC_CRITERIA.map(c => { const r = ptc[c.id] || {}; return (
-                    <tr key={c.id} className="border-t border-slate-100"><td className="px-3 py-2 text-slate-700">{c.title}</td><td className="px-3 py-2 text-center">{r.selfRating || "—"}</td><td className="px-3 py-2 text-center">{r.mgrRating || "—"}</td></tr>
+                    <tr key={c.id} className="border-t border-slate-100"><td className="px-3 py-2 text-slate-700">{c.title}</td><td className="px-3 py-2 text-center">{r.mgrRating || "—"}</td></tr>
                   ); })}</tbody>
                 </table>
               </div>
-              <div className="bg-slate-50 rounded-lg p-2.5 text-sm"><span className="text-xs text-slate-500 block">Employee remarks</span>{ptc.__selfComment || "—"}</div>
               <div className="bg-teal-50/60 rounded-lg p-2.5 text-sm"><span className="text-xs text-slate-500 block">Manager feedback</span>{ptc.__mgrComment || "—"}</div>
             </div>
           );
