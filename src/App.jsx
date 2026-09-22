@@ -706,7 +706,8 @@ function ReviewActivity({ subject, record, kras, onChange, onSaved, actorRole, h
 // ---- Probation to Confirmation activity ---- (manager rates → HR approves)
 function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) {
   const ptc = record.ptc || {};
-  const stage = record.stage || "manager";
+  // "self" stage is legacy — PTC no longer has a self step; treat it as "manager"
+  const stage = (record.stage === "self" || !record.stage) ? "manager" : record.stage;
   const [hrComment, setHrComment] = useState("");
   const setRating = (id, v) => onChange({ ...record, ptc: { ...ptc, [id]: { ...(ptc[id] || {}), mgrRating: v } } });
   const setMgrComment = (v) => onChange({ ...record, ptc: { ...ptc, __mgrComment: v } });
