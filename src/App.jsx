@@ -2424,6 +2424,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
   const [showEditPos, setShowEditPos] = useState(false);
   const [editPosForm, setEditPosForm] = useState(null);
   const [posNoteInput, setPosNoteInput] = useState("");
+  const [candNoteInput, setCandNoteInput] = useState("");
   const [showAddCand, setShowAddCand] = useState(false);
   const [selCand, setSelCand] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -2590,6 +2591,42 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     const updated = { ...selPos, documents: (selPos.documents || []).filter(d => d.id !== docId) };
     const next = positions.map(p => p.id === selPos.id ? updated : p);
     await persistPositions(next); setSelPos(updated);
+  };
+
+  const addCandNote = async () => {
+    const text = candNoteInput.trim(); if (!text || !selCand) return;
+    const note = { id: crypto.randomUUID(), text, author: me.name, at: new Date().toISOString() };
+    const updated = { ...selCand, candNotes: [...(selCand.candNotes || []), note] };
+    const next = candidates.map(c => c.id === selCand.id ? updated : c);
+    await persistCandidates(next);
+    setSelCand(updated); setCandNoteInput("");
+  };
+
+  const removeCandNote = async (noteId) => {
+    const updated = { ...selCand, candNotes: (selCand.candNotes || []).filter(n => n.id !== noteId) };
+    const next = candidates.map(c => c.id === selCand.id ? updated : c);
+    await persistCandidates(next); setSelCand(updated);
+  };
+
+  const addCandDocument = (e) => {
+    const files = Array.from(e.target.files); if (!files.length || !selCand) return;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const doc = { id: crypto.randomUUID(), name: file.name, dataUrl: ev.target.result, uploadedAt: new Date().toISOString(), uploadedBy: me.name };
+        const updated = { ...selCand, candDocuments: [...(selCand.candDocuments || []), doc] };
+        const next = candidates.map(c => c.id === selCand.id ? updated : c);
+        await persistCandidates(next); setSelCand(updated);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeCandDocument = async (docId) => {
+    const updated = { ...selCand, candDocuments: (selCand.candDocuments || []).filter(d => d.id !== docId) };
+    const next = candidates.map(c => c.id === selCand.id ? updated : c);
+    await persistCandidates(next); setSelCand(updated);
   };
 
   if (loading) return <div className="flex items-center justify-center h-40 text-slate-400 text-sm">Loading recruitment data…</div>;
@@ -3123,7 +3160,51 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
               {selCand.expectedSalary && <div><span className="text-xs text-slate-400 block mb-0.5">Expected Take Home</span>{selCand.expectedSalary}</div>}
             </div>
             {selCand.resume && <a href={selCand.resume.dataUrl} download={selCand.resume.name} className="flex items-center gap-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 hover:bg-indigo-100 transition w-fit"><Download className="w-3.5 h-3.5" />{selCand.resume.name}</a>}
-            {selCand.notes && <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600"><span className="font-medium text-slate-700 block mb-1">Notes</span>{selCand.notes}</div>}
+            {selCand.notes && <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600"><span className="font-medium text-slate-700 block mb-1">Application Notes</span>{selCand.notes}</div>}
+            {/* Notes section */}
+            <div className="border-t border-slate-100 pt-3">
+              <p className="text-xs font-semibold text-slate-600 mb-2">Notes</p>
+              <div className="space-y-2">
+                {(selCand.candNotes || []).map(n => (
+                  <div key={n.id} className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-700">{n.text}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{n.author} · {recFmtDate(n.at)}</p>
+                    </div>
+                    {canManage && <button onClick={() => removeCandNote(n.id)} className="text-slate-300 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>}
+                  </div>
+                ))}
+              </div>
+              {canManage && (
+                <div className="flex gap-2 mt-2">
+                  <input value={candNoteInput} onChange={e => setCandNoteInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addCandNote()} placeholder="Add a note…" className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" />
+                  <button onClick={addCandNote} className="text-xs font-medium bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition">Add</button>
+                </div>
+              )}
+            </div>
+            {/* Documents section */}
+            <div className="border-t border-slate-100 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-slate-600">Documents</p>
+                {canManage && (
+                  <label className="flex items-center gap-1 text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-800 transition">
+                    <Upload className="w-3.5 h-3.5" />Attach
+                    <input type="file" multiple className="hidden" onChange={addCandDocument} />
+                  </label>
+                )}
+              </div>
+              {(selCand.candDocuments || []).length === 0 && <p className="text-xs text-slate-400">No documents attached.</p>}
+              <div className="space-y-1.5">
+                {(selCand.candDocuments || []).map(d => (
+                  <div key={d.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <a href={d.dataUrl} download={d.name} className="flex-1 text-xs text-indigo-600 truncate hover:underline">{d.name}</a>
+                    <span className="text-xs text-slate-400 shrink-0">{d.uploadedBy}</span>
+                    {canManage && <button onClick={() => removeCandDocument(d.id)} className="text-slate-300 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>}
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="flex items-center gap-2"><span className="text-xs font-medium text-slate-600">Current Stage</span><span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${recStageCls(selCand.stage)}`}>{recStageLabel(selCand.stage)}</span></div>
             {canManage && selCand.stage !== "joined" && selCand.stage !== "rejected" && (
               <div>
