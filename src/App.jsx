@@ -2436,7 +2436,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
   const REC_COMPANIES = ["Otto", "Minister White"];
   const emptyPosForm = { title: "", company: "", department: "", location: "", openings: "1", approvedBudget: "", description: "", requirements: "", approvalLetter: null };
   const [posForm, setPosForm] = useState(emptyPosForm);
-  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", currentSalary: "", expectedSalary: "", notes: "", resume: null };
+  const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", currentSalary: "", expectedSalary: "", notes: "", resume: null, documents: [] };
   const [candForm, setCandForm] = useState(emptyCandForm);
 
   useEffect(() => { loadData(); }, []);
@@ -2504,7 +2504,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     if (!candForm.name.trim()) { setFormErr("Candidate name is required."); return; }
     if (!candForm.phone.trim()) { setFormErr("Phone number is required."); return; }
     setSaving(true); setFormErr("");
-    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), currentSalary: candForm.currentSalary.trim(), expectedSalary: candForm.expectedSalary.trim(), notes: candForm.notes.trim(), resume: candForm.resume || null, stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
+    const newCand = { id: crypto.randomUUID(), positionId: selPos.id, createdAt: new Date().toISOString(), name: candForm.name.trim(), phone: candForm.phone.trim(), email: candForm.email.trim(), currentCompany: candForm.currentCompany.trim(), experience: candForm.experience.trim(), currentSalary: candForm.currentSalary.trim(), expectedSalary: candForm.expectedSalary.trim(), notes: candForm.notes.trim(), resume: candForm.resume || null, candDocuments: candForm.documents || [], candNotes: [], stage: "sourced", stageHistory: [{ stage: "sourced", date: new Date().toISOString().split("T")[0], by: me.name }], addedBy: me.employeeId, addedByName: me.name };
     const next = [newCand, ...candidates];
     await persistCandidates(next);
     setSaving(false);
@@ -3133,6 +3133,35 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                     <input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => setCandForm(f => ({ ...f, resume: { name: file.name, dataUrl: ev.target.result } })); reader.readAsDataURL(file); }} />
                   </label>
                 )}
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-600">Documents</label>
+                  <label className="flex items-center gap-1 text-xs font-medium text-indigo-600 cursor-pointer hover:text-indigo-800 transition">
+                    <Upload className="w-3.5 h-3.5" />Attach files
+                    <input type="file" multiple className="hidden" onChange={e => {
+                      const files = Array.from(e.target.files); if (!files.length) return;
+                      files.forEach(file => {
+                        const reader = new FileReader();
+                        reader.onload = ev => setCandForm(f => ({ ...f, documents: [...(f.documents || []), { id: crypto.randomUUID(), name: file.name, dataUrl: ev.target.result, uploadedAt: new Date().toISOString(), uploadedBy: me.name }] }));
+                        reader.readAsDataURL(file);
+                      });
+                      e.target.value = "";
+                    }} />
+                  </label>
+                </div>
+                {(candForm.documents || []).length === 0
+                  ? <p className="text-xs text-slate-400">No documents attached.</p>
+                  : <div className="space-y-1.5">
+                      {(candForm.documents || []).map(d => (
+                        <div key={d.id} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                          <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="flex-1 text-xs text-slate-700 truncate">{d.name}</span>
+                          <button onClick={() => setCandForm(f => ({ ...f, documents: f.documents.filter(x => x.id !== d.id) }))} className="text-slate-300 hover:text-rose-500 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                }
               </div>
             </div>
             <div className="flex gap-2 pt-1">
