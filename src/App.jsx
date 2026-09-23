@@ -2433,7 +2433,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
   const [rptStatusF, setRptStatusF] = useState("all");
 
   const REC_COMPANIES = ["Otto", "Minister White"];
-  const emptyPosForm = { title: "", company: "", department: "", location: "", openings: "1", description: "", requirements: "", approvalLetter: null };
+  const emptyPosForm = { title: "", company: "", department: "", location: "", openings: "1", approvedBudget: "", description: "", requirements: "", approvalLetter: null };
   const [posForm, setPosForm] = useState(emptyPosForm);
   const emptyCandForm = { name: "", phone: "", email: "", currentCompany: "", experience: "", currentSalary: "", expectedSalary: "", notes: "", resume: null };
   const [candForm, setCandForm] = useState(emptyCandForm);
@@ -2484,7 +2484,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     if (!posForm.company) { setFormErr("Company is required."); return; }
     if (!posForm.department.trim()) { setFormErr("Department is required."); return; }
     setSaving(true); setFormErr("");
-    const newPos = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), title: posForm.title.trim(), company: posForm.company, department: posForm.department.trim(), location: posForm.location.trim(), openings: parseInt(posForm.openings) || 1, description: posForm.description.trim(), requirements: posForm.requirements.trim(), status: "Open", approvalLetter: posForm.approvalLetter, createdBy: me.employeeId, createdByName: me.name };
+    const newPos = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), title: posForm.title.trim(), company: posForm.company, department: posForm.department.trim(), location: posForm.location.trim(), openings: parseInt(posForm.openings) || 1, approvedBudget: posForm.approvedBudget.trim(), description: posForm.description.trim(), requirements: posForm.requirements.trim(), status: "Open", approvalLetter: posForm.approvalLetter, createdBy: me.employeeId, createdByName: me.name };
     const next = [newPos, ...positions];
     await persistPositions(next);
     setSaving(false);
@@ -2548,7 +2548,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     if (!editPosForm.company) { setFormErr("Company is required."); return; }
     if (!editPosForm.department.trim()) { setFormErr("Department is required."); return; }
     setSaving(true); setFormErr("");
-    const updated = { ...selPos, title: editPosForm.title.trim(), company: editPosForm.company, department: editPosForm.department.trim(), location: editPosForm.location.trim(), openings: parseInt(editPosForm.openings) || 1, description: editPosForm.description.trim(), requirements: editPosForm.requirements.trim() };
+    const updated = { ...selPos, title: editPosForm.title.trim(), company: editPosForm.company, department: editPosForm.department.trim(), location: editPosForm.location.trim(), openings: parseInt(editPosForm.openings) || 1, approvedBudget: (editPosForm.approvedBudget || "").trim(), description: editPosForm.description.trim(), requirements: editPosForm.requirements.trim() };
     const next = positions.map(p => p.id === selPos.id ? updated : p);
     await persistPositions(next);
     setSelPos(updated);
@@ -2840,10 +2840,11 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                     {selPos.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{selPos.location}</span>}
                     <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" />{selPos.openings} opening{selPos.openings !== 1 ? "s" : ""}</span>
                     <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />{filled} filled</span>
+                    {selPos.approvedBudget && <span className="flex items-center gap-1"><span className="text-slate-400">Budget:</span>{selPos.approvedBudget}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {canManage && <button onClick={() => { setEditPosForm({ title: selPos.title, company: selPos.company || "", department: selPos.department, location: selPos.location || "", openings: String(selPos.openings), description: selPos.description || "", requirements: selPos.requirements || "" }); setFormErr(""); setShowEditPos(true); }} className="flex items-center gap-1 text-xs font-medium text-slate-500 border border-slate-200 bg-white px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition"><Edit3 className="w-3.5 h-3.5" />Edit</button>}
+                  {canManage && <button onClick={() => { setEditPosForm({ title: selPos.title, company: selPos.company || "", department: selPos.department, location: selPos.location || "", openings: String(selPos.openings), approvedBudget: selPos.approvedBudget || "", description: selPos.description || "", requirements: selPos.requirements || "" }); setFormErr(""); setShowEditPos(true); }} className="flex items-center gap-1 text-xs font-medium text-slate-500 border border-slate-200 bg-white px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition"><Edit3 className="w-3.5 h-3.5" />Edit</button>}
                   {isHR && <select value={selPos.status} onChange={e => updatePosStatus(selPos.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"><option value="Open">Open</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select>}
                   {selPos.approvalLetter
                     ? <div className="flex items-center gap-1">
@@ -2993,7 +2994,10 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 </div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Location</label><input value={posForm.location} onChange={e => setPosForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Chennai" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
               </div>
-              <div><label className="block text-xs font-medium text-slate-600 mb-1">Number of Openings</label><input type="number" min="1" value={posForm.openings} onChange={e => setPosForm(f => ({ ...f, openings: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Number of Openings</label><input type="number" min="1" value={posForm.openings} onChange={e => setPosForm(f => ({ ...f, openings: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Approved Budget</label><input value={posForm.approvedBudget} onChange={e => setPosForm(f => ({ ...f, approvedBudget: e.target.value }))} placeholder="e.g. ₹8,00,000 / year" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+              </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Job Description</label><textarea value={posForm.description} onChange={e => setPosForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Role responsibilities…" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Requirements</label><textarea value={posForm.requirements} onChange={e => setPosForm(f => ({ ...f, requirements: e.target.value }))} rows={2} placeholder="Skills, qualifications…" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Approval Letter</label>
@@ -3040,7 +3044,10 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                 </div>
                 <div><label className="block text-xs font-medium text-slate-600 mb-1">Location</label><input value={editPosForm.location} onChange={e => setEditPosForm(f => ({ ...f, location: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
               </div>
-              <div><label className="block text-xs font-medium text-slate-600 mb-1">Number of Openings</label><input type="number" min="1" value={editPosForm.openings} onChange={e => setEditPosForm(f => ({ ...f, openings: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Number of Openings</label><input type="number" min="1" value={editPosForm.openings} onChange={e => setEditPosForm(f => ({ ...f, openings: e.target.value }))} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+                <div><label className="block text-xs font-medium text-slate-600 mb-1">Approved Budget</label><input value={editPosForm.approvedBudget} onChange={e => setEditPosForm(f => ({ ...f, approvedBudget: e.target.value }))} placeholder="e.g. ₹8,00,000 / year" className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition" /></div>
+              </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Job Description</label><textarea value={editPosForm.description} onChange={e => setEditPosForm(f => ({ ...f, description: e.target.value }))} rows={3} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Requirements</label><textarea value={editPosForm.requirements} onChange={e => setEditPosForm(f => ({ ...f, requirements: e.target.value }))} rows={2} className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition resize-none" /></div>
             </div>
