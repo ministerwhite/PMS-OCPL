@@ -3311,7 +3311,7 @@ export default function App() {
       supabase.rpc("list_users"),
       supabase.from("cycles").select("*"),
       supabase.from("records").select("*"),
-      supabase.from("emails").select("*").order("sent_at", { ascending: false }),
+      supabase.from("emails").select("*").neq("to", "__rec__").order("sent_at", { ascending: false }),
       supabase.from("email_templates").select("*"),
     ]);
     const firstError = usersRes.error || cyclesRes.error || recordsRes.error || emailsRes.error || tplRes.error;
