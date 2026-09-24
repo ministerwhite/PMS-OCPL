@@ -18,12 +18,13 @@ const SHEET_STATUS = {
   Approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
   "Changes Requested": "bg-amber-100 text-amber-700 border-amber-200",
 };
-const CYCLE_TYPES = ["Goal Setting", "Mid-Year Review", "Annual Performance Review", "Probation to Confirmation"];
+const CYCLE_TYPES = ["Goal Setting", "Mid-Year Review", "Annual Performance Review", "Probation to Confirmation", "PTC_EBO"];
 const CYCLE_TONE = {
   "Goal Setting": "bg-indigo-100 text-indigo-700 border-indigo-200",
   "Mid-Year Review": "bg-amber-100 text-amber-700 border-amber-200",
   "Annual Performance Review": "bg-violet-100 text-violet-700 border-violet-200",
   "Probation to Confirmation": "bg-teal-100 text-teal-700 border-teal-200",
+  "PTC_EBO": "bg-orange-100 text-orange-700 border-orange-200",
 };
 // Probation to Confirmation (PTC) — fixed questionnaire rated 1-5 by self then manager.
 const PTC_SCALE = [
@@ -42,6 +43,15 @@ const PTC_CRITERIA = [
   { id: 5, title: "Order Execution & Task Completion", desc: "Following instructions & precision, completing assigned tasks on time, accountability & responsibility" },
   { id: 6, title: "Adaptability & Learning Ability", desc: "Willingness to learn & improve, adjusts to changes effectively" },
   { id: 7, title: "Initiative & Problem-Solving", desc: "Takes ownership of tasks, proposes effective solutions" },
+];
+const PTC_EBO_CRITERIA = [
+  { id: 1, title: "Sales Performance & Target Achievement", desc: "Achieving sales targets, driving revenue growth, conversion rate" },
+  { id: 2, title: "Store Operations Management", desc: "Daily store operations, stock management, visual merchandising standards" },
+  { id: 3, title: "Discipline & Attendance", desc: "Timeliness, adherence to schedules, absenteeism control" },
+  { id: 4, title: "Team Leadership & Staff Management", desc: "Team motivation, staff productivity, training & development" },
+  { id: 5, title: "Customer Experience & Service Quality", desc: "Handling customer queries, service excellence, complaint resolution" },
+  { id: 6, title: "Inventory & Shrinkage Control", desc: "Stock accuracy, loss prevention, audit compliance" },
+  { id: 7, title: "Initiative & Problem-Solving", desc: "Decision-making, handling store challenges, proactive improvements" },
 ];
 const USER_ROLE = {
   employee: { label: "Employee", color: "bg-slate-100 text-slate-600 border-slate-200" },
@@ -74,7 +84,7 @@ const deep = (o) => JSON.parse(JSON.stringify(o));
 const totalWeight = (kras) => kras.reduce((a, k) => a + k.kpis.reduce((b, p) => b + Number(p.weightage || 0), 0), 0);
 const cgpaToBand = (c) => c >= 4.5 ? 5 : c >= 3.5 ? 4 : c >= 2.5 ? 3 : c >= 1.5 ? 2 : 1;
 const rKey = (cid, eid) => `${cid}::${eid}`;
-const defaultRecord = (type) => type === "Goal Setting" ? { kras: deep(KRA_TEMPLATE), status: "Draft", note: "" } : type === "Probation to Confirmation" ? { ptc: {}, stage: "manager" } : { review: {}, stage: "self" };
+const defaultRecord = (type) => type === "Goal Setting" ? { kras: deep(KRA_TEMPLATE), status: "Draft", note: "" } : (type === "Probation to Confirmation" || type === "PTC_EBO") ? { ptc: {}, stage: "manager" } : { review: {}, stage: "self" };
 
 const REC_SENTINEL = "__rec__";
 const mapUserRow = (r) => {
@@ -704,7 +714,7 @@ function ReviewActivity({ subject, record, kras, onChange, onSaved, actorRole, h
 }
 
 // ---- Probation to Confirmation activity ---- (manager rates → HR approves)
-function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) {
+function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify, criteria = PTC_CRITERIA, title = "Probation assessment" }) {
   const ptc = record.ptc || {};
   // "self" stage is legacy — PTC no longer has a self step; treat it as "manager"
   const stage = (record.stage === "self" || !record.stage) ? "manager" : record.stage;
@@ -713,9 +723,9 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
   const setMgrComment = (v) => onChange({ ...record, ptc: { ...ptc, __mgrComment: v } });
   const mgrComment = ptc.__mgrComment || "";
   const hrNote = ptc.__hrNote || "";
-  const mgrDone = PTC_CRITERIA.every(c => ptc[c.id]?.mgrRating);
-  const mgrTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
-  const maxTotal = PTC_CRITERIA.length * 5;
+  const mgrDone = criteria.every(c => ptc[c.id]?.mgrRating);
+  const mgrTotal = criteria.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
+  const maxTotal = criteria.length * 5;
 
   const submitToHR = () => { onChange({ ...record, stage: "hr", ptc: { ...ptc, __hrNote: "" }, managerSubmittedAt: new Date().toISOString() }, { immediate: true }); onSaved("Sent to HR for approval."); notify && notify("ptc_to_hr"); };
   const approveHR = () => { onChange({ ...record, stage: "done", ptc: { ...ptc, __hrNote: "" }, hrApprovedAt: new Date().toISOString() }, { immediate: true }); onSaved("PTC approved."); notify && notify("ptc_complete"); };
@@ -728,7 +738,7 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h3 className="text-sm font-semibold text-slate-700">Probation assessment</h3>
+          <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
           <span className="text-xs text-slate-400">Rated 1 (Poor) – 5 (Excellent)</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -745,7 +755,7 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
       {actorRole === "hr" && stage === "manager" && <Notice icon={Clock}>Assessment in progress with the manager.</Notice>}
       {actorRole === "hr" && stage === "done" && <Notice icon={CheckCircle2} tone="emerald">PTC approved.</Notice>}
 
-      {PTC_CRITERIA.map((c, i) => {
+      {criteria.map((c, i) => {
         const r = ptc[c.id] || {};
         return (
           <div key={c.id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -767,7 +777,7 @@ function PtcActivity({ subject, record, onChange, onSaved, actorRole, notify }) 
         <div className="bg-teal-50/60 rounded-lg p-3 space-y-2"><div className="text-xs font-medium text-slate-600">Manager feedback</div>{managerWorking ? <textarea value={mgrComment} onChange={e => setMgrComment(e.target.value)} rows={3} placeholder="Overall feedback on the employee's probation period…" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-200" /> : <p className="text-sm text-slate-600">{mgrComment || <span className="text-slate-400">—</span>}</p>}</div>
       </div>
 
-      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={submitToHR} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Submit to HR" : "Rate all 7 criteria first"}</button></div>}
+      {managerWorking && <div className="flex gap-2"><button onClick={() => { onChange(record, { immediate: true }); onSaved("Draft saved."); }} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5"><Save className="w-4 h-4" /> Save draft</button><button onClick={submitToHR} disabled={!mgrDone} className={`flex-1 text-sm font-medium px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 ${mgrDone ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}><Send className="w-4 h-4" /> {mgrDone ? "Submit to HR" : `Rate all ${criteria.length} criteria first`}</button></div>}
 
       {hrWorking && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -790,6 +800,7 @@ function CycleActivity({ cycle, subject, record, onChange, onSaved, actorRole, a
   const notifyEvent = (event, extra = {}) => notify && notify(event, { cycle, subject, ...extra });
   if (cycle.type === "Goal Setting") return <GoalActivity subject={subject} record={record} onChange={onChange} onSaved={onSaved} actorRole={actorRole} notify={notifyEvent} />;
   if (cycle.type === "Probation to Confirmation") return <PtcActivity subject={subject} record={record} onChange={onChange} onSaved={onSaved} actorRole={actorRole} notify={notifyEvent} />;
+  if (cycle.type === "PTC_EBO") return <PtcActivity subject={subject} record={record} onChange={onChange} onSaved={onSaved} actorRole={actorRole} notify={notifyEvent} criteria={PTC_EBO_CRITERIA} title="EBO Probation assessment" />;
   const hasHR = cycle.type === "Annual Performance Review";
   return <ReviewActivity subject={subject} record={record} kras={approvedKRAs} onChange={onChange} onSaved={onSaved} actorRole={actorRole} hasHR={hasHR} notify={notifyEvent} />;
 }
@@ -1024,7 +1035,7 @@ function TeamPage({ me, users, cycles, getRecord, setRecord, onSaved, approvedKR
 function ApprovalsPage({ users, cycles, getRecord, setRecord, onSaved, approvedKRAsFor, notify }) {
   const [open, setOpen] = useState(null);
   const items = [];
-  cycles.filter(c => c.status === "Active" && (c.type === "Annual Performance Review" || c.type === "Probation to Confirmation")).forEach(c => {
+  cycles.filter(c => c.status === "Active" && (c.type === "Annual Performance Review" || c.type === "Probation to Confirmation" || c.type === "PTC_EBO")).forEach(c => {
     (c.participants || []).forEach(eid => {
       const rec = getRecord(c, eid);
       if (rec.stage === "hr") { const u = users.find(x => x.employeeId === eid); if (u) items.push({ cycle: c, subject: u }); }
@@ -1696,7 +1707,8 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
 
 function KRAViewModal({ subject, cycle, record, kras, onClose, onDownload }) {
   const isGoal = cycle.type === "Goal Setting";
-  const isPtc = cycle.type === "Probation to Confirmation";
+  const isPtc = cycle.type === "Probation to Confirmation" || cycle.type === "PTC_EBO";
+  const ptcCriteria = cycle.type === "PTC_EBO" ? PTC_EBO_CRITERIA : PTC_CRITERIA;
   const rKras = isGoal ? (record?.kras || []) : (kras || []);
   const totalW = rKras.length ? totalWeight(rKras) : 0;
   const review = !isGoal ? (record?.review || {}) : {};
@@ -1728,14 +1740,14 @@ function KRAViewModal({ subject, cycle, record, kras, onClose, onDownload }) {
         <div className="bg-slate-50 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div><span className="text-slate-400">Submitted: </span><span className="text-slate-700 font-medium">{fmtDT(isGoal ? record?.submittedAt : record?.selfSubmittedAt)}</span></div>
           <div><span className="text-slate-400">Manager approved: </span><span className="text-slate-700 font-medium">{fmtDT(isGoal ? record?.approvedAt : record?.managerApprovedAt)}</span></div>
-          {!isGoal && (cycle.type === "Annual Performance Review" || cycle.type === "Probation to Confirmation") && <div><span className="text-slate-400">HR approved: </span><span className="text-slate-700 font-medium">{fmtDT(record?.hrApprovedAt)}</span></div>}
+          {!isGoal && (cycle.type === "Annual Performance Review" || cycle.type === "Probation to Confirmation" || cycle.type === "PTC_EBO") && <div><span className="text-slate-400">HR approved: </span><span className="text-slate-700 font-medium">{fmtDT(record?.hrApprovedAt)}</span></div>}
         </div>
 
         {isPtc ? (() => {
           const ptc = record?.ptc || {};
-          const selfTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.selfRating) || 0), 0);
-          const mgrTotal = PTC_CRITERIA.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
-          const max = PTC_CRITERIA.length * 5;
+          const selfTotal = ptcCriteria.reduce((a, c) => a + (Number(ptc[c.id]?.selfRating) || 0), 0);
+          const mgrTotal = ptcCriteria.reduce((a, c) => a + (Number(ptc[c.id]?.mgrRating) || 0), 0);
+          const max = ptcCriteria.length * 5;
           return (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
@@ -1745,7 +1757,7 @@ function KRAViewModal({ subject, cycle, record, kras, onClose, onDownload }) {
               <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="bg-slate-50 text-slate-500 text-left"><th className="px-3 py-2">Criteria</th><th className="px-3 py-2 text-center">Manager Rating</th></tr></thead>
-                  <tbody>{PTC_CRITERIA.map(c => { const r = ptc[c.id] || {}; return (
+                  <tbody>{ptcCriteria.map(c => { const r = ptc[c.id] || {}; return (
                     <tr key={c.id} className="border-t border-slate-100"><td className="px-3 py-2 text-slate-700">{c.title}</td><td className="px-3 py-2 text-center">{r.mgrRating || "—"}</td></tr>
                   ); })}</tbody>
                 </table>
@@ -1845,10 +1857,11 @@ function ReportsPage({ users, cycles, records }) {
         "KRA #": ki + 1, "Key Result Area": k.kra, "KPI": p.kpi, "Measurement": p.measurement,
         "Target": p.target, "Weightage (%)": Number(p.weightage) || 0,
       })));
-    } else if (c.type === "Probation to Confirmation") {
+    } else if (c.type === "Probation to Confirmation" || c.type === "PTC_EBO") {
+      const ptcCrit = c.type === "PTC_EBO" ? PTC_EBO_CRITERIA : PTC_CRITERIA;
       const ptc = rec?.ptc || {};
-      const stage = rec?.stage || "self";
-      PTC_CRITERIA.forEach(crit => {
+      const stage = rec?.stage || "manager";
+      ptcCrit.forEach(crit => {
         const r = ptc[crit.id] || {};
         rows.push({
           ...base, "Stage": stage, "Submitted": fmtDT(rec?.selfSubmittedAt), "Approved": fmtDT(rec?.managerApprovedAt),
@@ -1858,8 +1871,8 @@ function ReportsPage({ users, cycles, records }) {
       });
       rows.push({
         ...base, "Stage": stage, "Submitted": fmtDT(rec?.selfSubmittedAt), "Approved": fmtDT(rec?.managerApprovedAt),
-        "Criteria": "OVERALL", "Self Rating (1-5)": PTC_CRITERIA.reduce((a, c2) => a + (Number(ptc[c2.id]?.selfRating) || 0), 0),
-        "Manager Rating (1-5)": PTC_CRITERIA.reduce((a, c2) => a + (Number(ptc[c2.id]?.mgrRating) || 0), 0),
+        "Criteria": "OVERALL", "Self Rating (1-5)": ptcCrit.reduce((a, c2) => a + (Number(ptc[c2.id]?.selfRating) || 0), 0),
+        "Manager Rating (1-5)": ptcCrit.reduce((a, c2) => a + (Number(ptc[c2.id]?.mgrRating) || 0), 0),
         "Employee Remarks": ptc.__selfComment || "", "Manager Feedback": ptc.__mgrComment || "",
       });
     } else {
@@ -2156,7 +2169,7 @@ function ReportsPage({ users, cycles, records }) {
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <button onClick={() => setViewing({ cycle: c, user: u, rec })} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 whitespace-nowrap"><Eye className="w-3.5 h-3.5" /> View</button>
-                          <button onClick={() => downloadIndividualExcel(u, c, rec, c.type !== "Goal Setting" && c.type !== "Probation to Confirmation" ? getApprovedKras(u.employeeId, c.year) : null)} title="Download this employee's report as Excel" className="text-xs font-medium text-emerald-700 hover:text-emerald-800 flex items-center gap-1 whitespace-nowrap"><Download className="w-3.5 h-3.5" /> Excel</button>
+                          <button onClick={() => downloadIndividualExcel(u, c, rec, c.type !== "Goal Setting" && c.type !== "Probation to Confirmation" && c.type !== "PTC_EBO" ? getApprovedKras(u.employeeId, c.year) : null)} title="Download this employee's report as Excel" className="text-xs font-medium text-emerald-700 hover:text-emerald-800 flex items-center gap-1 whitespace-nowrap"><Download className="w-3.5 h-3.5" /> Excel</button>
                         </div>
                       </td>
                     </tr>
@@ -2187,7 +2200,7 @@ function ReportsPage({ users, cycles, records }) {
           record={viewing.rec}
           kras={viewing.cycle.type !== "Goal Setting" ? getApprovedKras(viewing.user.employeeId, viewing.cycle.year) : null}
           onClose={() => setViewing(null)}
-          onDownload={() => downloadIndividualExcel(viewing.user, viewing.cycle, viewing.rec, viewing.cycle.type !== "Goal Setting" && viewing.cycle.type !== "Probation to Confirmation" ? getApprovedKras(viewing.user.employeeId, viewing.cycle.year) : null)}
+          onDownload={() => downloadIndividualExcel(viewing.user, viewing.cycle, viewing.rec, viewing.cycle.type !== "Goal Setting" && viewing.cycle.type !== "Probation to Confirmation" && viewing.cycle.type !== "PTC_EBO" ? getApprovedKras(viewing.user.employeeId, viewing.cycle.year) : null)}
         />
       )}
     </div>
