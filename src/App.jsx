@@ -1304,7 +1304,7 @@ function CyclesAdmin({ users, cycles, setCycles, onSaved, onError, notify, onRes
   );
 }
 
-function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onUploadKRA }) {
+function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onUploadKRA, onAssumeIdentity, myId }) {
   const [form, setForm] = useState(EMPTY_USER);
   const [bulkMsg, setBulkMsg] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -1317,6 +1317,7 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
   const [kraMsg, setKraMsg] = useState({});
   const [kraPending, setKraPending] = useState({});
   const [bulkKraMode, setBulkKraMode] = useState("approved");
+  const [confirmAssume, setConfirmAssume] = useState(null);
   const saveEdit = () => {
     if (!editValid) return;
     const oldUser = users.find(u => u.id === editingId);
@@ -1571,6 +1572,9 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
                   <Pill className={(USER_ROLE[u.role] || USER_ROLE.employee).color}>{(USER_ROLE[u.role] || USER_ROLE.employee).label}</Pill>
                   <button onClick={() => isEditing ? cancelEdit() : startEdit(u)} title={isEditing ? "Cancel edit" : "Edit user"} className={`p-1 rounded-lg transition ${isEditing ? "text-indigo-600 bg-indigo-50" : "text-slate-400 hover:text-indigo-600 hover:bg-slate-50"}`}><Edit3 className="w-4 h-4" /></button>
                   <button onClick={() => { cancelEdit(); setKraMsg(m => ({ ...m, [u.id]: null })); setKraPending(m => ({ ...m, [u.id]: null })); setKraUploadId(kraUploadId === u.id ? null : u.id); }} title="Upload KRA" className={`p-1 rounded-lg transition ${kraUploadId === u.id ? "text-emerald-600 bg-emerald-50" : "text-slate-400 hover:text-emerald-600 hover:bg-slate-50"}`}><Upload className="w-4 h-4" /></button>
+                  {onAssumeIdentity && u.employeeId !== myId && (
+                    <button onClick={() => setConfirmAssume(u)} title="Assume identity — view the app as this user" className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition"><UserCheck className="w-4 h-4" /></button>
+                  )}
                   <button onClick={() => removeUser(u.id)} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
@@ -1701,6 +1705,20 @@ function UsersAdmin({ users, setUsers, onSaved, onError, onEditUser, cycles, onU
         })()
         }
       </div>
+
+      {confirmAssume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto"><UserCheck className="w-6 h-6" /></div>
+            <h3 className="font-semibold text-slate-800">Assume this identity?</h3>
+            <p className="text-sm text-slate-500">You're about to view the app as <span className="font-medium text-slate-700">{confirmAssume.name}</span> ({confirmAssume.employeeId}). You can return to your own account anytime from the banner at the top.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAssume(null)} className="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium px-4 py-2.5 rounded-xl">Cancel</button>
+              <button onClick={() => { onAssumeIdentity(confirmAssume.employeeId); setConfirmAssume(null); }} className="flex-1 text-sm font-medium px-4 py-2.5 rounded-xl text-white bg-amber-600 hover:bg-amber-700">View as this user</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2460,8 +2478,8 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
     setLoading(true);
     try {
       const [posRes, rcRes] = await Promise.all([
-        supabase.from("emails").select("body,id").eq("to", REC_STORE_TO).eq("event", "rec-positions").order("id", { ascending: false }).limit(1),
-        supabase.from("emails").select("body,id").eq("to", REC_STORE_TO).eq("event", "rec-candidates").order("id", { ascending: false }).limit(1),
+        supabase.from("emails").select("body,id").eq("to", REC_STORE_TO).eq("event", "rec-positions").order("sent_at", { ascending: false }).limit(1),
+        supabase.from("emails").select("body,id").eq("to", REC_STORE_TO).eq("event", "rec-candidates").order("sent_at", { ascending: false }).limit(1),
       ]);
       if (posRes.data && posRes.data.length > 0) setPositions(JSON.parse(posRes.data[0].body));
       if (rcRes.data && rcRes.data.length > 0) setCandidates(JSON.parse(rcRes.data[0].body));
@@ -2681,7 +2699,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
           });
           const allCands = filtered.flatMap(p => candidates.filter(c => c.positionId === p.id).map(c => {
             const stg = REC_STAGES.find(s => s.id === c.stage);
-            return { "Candidate Name": c.name, Position: p.title, Department: p.department, Email: c.email || "", Phone: c.phone || "", "Current Company": c.currentCompany || "", Experience: c.experience || "", "Current Salary": c.currentSalary || "", "Expected Salary": c.expectedSalary || "", Stage: stg ? stg.label : c.stage, Notes: c.notes || "", "Applied Date": recFmtDate(c.addedAt) };
+            return { "Candidate Name": c.name, Position: p.title, Department: p.department, Email: c.email || "", Phone: c.phone || "", "Current Company": c.currentCompany || "", Experience: c.experience || "", "Current Salary": c.currentSalary || "", "Expected Salary": c.expectedSalary || "", Stage: stg ? stg.label : c.stage, Notes: c.notes || "", "Applied Date": recFmtDate(c.createdAt) };
           }));
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(posRows), "Position Summary");
@@ -2819,7 +2837,7 @@ function RecruitmentPage({ me, users, onSaved, onError }) {
                               <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{c.currentSalary || "—"}</td>
                               <td className="px-3 py-3 text-indigo-600 font-medium whitespace-nowrap">{c.expectedSalary || "—"}</td>
                               <td className="px-3 py-3 text-center whitespace-nowrap"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${stg ? stg.cls : "bg-slate-100 text-slate-500 border-slate-200"}`}>{stg ? stg.label : c.stage}</span></td>
-                              <td className="px-3 py-3 text-slate-400 text-xs whitespace-nowrap">{recFmtDate(c.addedAt)}</td>
+                              <td className="px-3 py-3 text-slate-400 text-xs whitespace-nowrap">{recFmtDate(c.createdAt)}</td>
                             </tr>
                           );
                         })}
@@ -3300,6 +3318,9 @@ export default function App() {
       return uid;
     } catch (e) { return null; }
   });
+  const [impersonatorId, setImpersonatorId] = useState(() => {
+    try { return localStorage.getItem("pms:impersonatorId") || null; } catch (e) { return null; }
+  });
   const [view, setView] = useState("home");
   const [flash, setFlash] = useState("");
   const [flashError, setFlashError] = useState("");
@@ -3342,13 +3363,20 @@ export default function App() {
     } catch (e) { /* ignore */ }
   }, [currentUserId]);
 
+  useEffect(() => {
+    try {
+      if (impersonatorId) localStorage.setItem("pms:impersonatorId", impersonatorId);
+      else localStorage.removeItem("pms:impersonatorId");
+    } catch (e) { /* ignore */ }
+  }, [impersonatorId]);
+
   // Auto sign-out after 1 hour of inactivity. Any activity resets the timer; also
   // covers reloads (see currentUserId initializer) and idle-while-tab-hidden.
   useEffect(() => {
     if (!currentUserId) return;
     let timer;
     let lastWrite = 0;
-    const signOut = () => { try { localStorage.removeItem("pms:lastActivity"); } catch (e) {} setCurrentUserId(null); };
+    const signOut = () => { try { localStorage.removeItem("pms:lastActivity"); localStorage.removeItem("pms:impersonatorId"); } catch (e) {} setCurrentUserId(null); setImpersonatorId(null); };
     const bump = () => {
       const now = Date.now();
       if (now - lastWrite > 15000) { lastWrite = now; try { localStorage.setItem("pms:lastActivity", String(now)); } catch (e) {} }
@@ -3380,6 +3408,18 @@ export default function App() {
 
   const onSaved = (msg) => { setFlash(msg || "Saved."); setTimeout(() => setFlash(""), 2000); };
   const me = users.find(u => u.employeeId === currentUserId) || null;
+  const assumeIdentity = (targetId) => {
+    if (!me || me.role !== "hr" || targetId === me.employeeId) return;
+    setImpersonatorId(me.employeeId);
+    setCurrentUserId(targetId);
+    setView("home");
+  };
+  const returnToMyAccount = () => {
+    if (!impersonatorId) return;
+    setCurrentUserId(impersonatorId);
+    setImpersonatorId(null);
+    setView("home");
+  };
   const getRecord = (cycle, eid) => records[rKey(cycle.id, eid)] || defaultRecord(cycle.type);
 
   const persistRecord = async (cid, eid, next) => {
@@ -3628,11 +3668,17 @@ export default function App() {
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button onClick={() => setView(me.role === "recruiter" ? "recruitment" : "home")} className="flex items-center shrink-0"><img src={LOGO_STRIP} alt="Brand logos" className="h-8 w-auto object-contain" /></button>
           <nav className="flex items-center gap-1 overflow-x-auto">{tabs.map(t => <button key={t.id} onClick={() => setView(t.id)} className={`text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap transition ${view === t.id ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>{t.label}</button>)}</nav>
-          <button onClick={() => { setCurrentUserId(null); }} className="text-xs font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 shrink-0"><LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Sign out</span></button>
+          <button onClick={() => { setCurrentUserId(null); setImpersonatorId(null); }} className="text-xs font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 shrink-0"><LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Sign out</span></button>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto p-4 space-y-4">
+        {impersonatorId && (
+          <div className="flex items-center justify-between gap-2 flex-wrap bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl px-4 py-2">
+            <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 shrink-0" /> Viewing as <span className="font-medium">{me.name}</span> ({me.employeeId}) — assumed identity for support.</span>
+            <button onClick={returnToMyAccount} className="font-medium text-amber-900 hover:underline flex items-center gap-1 shrink-0"><LogOut className="w-3.5 h-3.5" /> Return to my account</button>
+          </div>
+        )}
         <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-2">
           <span className="text-xs text-slate-500">Signed in as <span className="font-medium text-slate-700">{me.name}</span> ({me.employeeId})</span>
           <div className="flex items-center gap-2"><Pill className={USER_ROLE[me.role].color}>{USER_ROLE[me.role].label}</Pill><button onClick={() => setShowChangePwd(true)} title="Change password" className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition"><KeyRound className="w-3.5 h-3.5" /></button></div>
@@ -3646,7 +3692,7 @@ export default function App() {
         {view === "team" && <TeamPage me={me} users={users} cycles={cycles} getRecord={getRecord} setRecord={setRecord} onSaved={onSaved} approvedKRAsFor={approvedKRAsFor} notify={notify} />}
         {view === "cycles" && <CyclesAdmin users={users} cycles={cycles} setCycles={setCycles} onSaved={onSaved} onError={showError} notify={notify} onResetParticipant={resetParticipant} reminderTargets={reminderTargets} onSendReminders={sendReminders} onRemindParticipant={remindParticipant} />}
         {view === "approvals" && <ApprovalsPage users={users} cycles={cycles} getRecord={getRecord} setRecord={setRecord} onSaved={onSaved} approvedKRAsFor={approvedKRAsFor} notify={notify} />}
-        {view === "users" && <UsersAdmin users={users} setUsers={setUsers} onSaved={onSaved} onError={showError} onEditUser={editUser} cycles={cycles} onUploadKRA={uploadKRA} />}
+        {view === "users" && <UsersAdmin users={users} setUsers={setUsers} onSaved={onSaved} onError={showError} onEditUser={editUser} cycles={cycles} onUploadKRA={uploadKRA} onAssumeIdentity={!impersonatorId ? assumeIdentity : null} myId={me.employeeId} />}
         {view === "completed" && <CompletedPage me={me} cycles={cycles} getRecord={getRecord} approvedKRAsFor={approvedKRAsFor} />}
         {view === "mykra" && <ApprovedKRAPage me={me} cycles={cycles} records={records} />}
         {view === "inbox" && <InboxPage me={me} emails={emails} isHR={me.role === "hr"} />}
